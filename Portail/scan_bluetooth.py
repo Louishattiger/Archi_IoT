@@ -5,7 +5,6 @@ import math
 import json
 import os
 
-
 def open_gate():
     print("##### OUVERTURE DU PORTAIL #####")
     iteration = 0
@@ -24,19 +23,43 @@ def open_gate():
 def broker_response(addr_list):
     print("Call broker_response")
     for address in addr_list:
-        print("Current address processing: ", address)
+        print("Current address processing: ",address)
         if address == "True":
             open_gate()
         else:
             rfcomm_ports_to_try = [1, 2, 3, 4, 5]
-            if connect_to_device(address, rfcomm_ports_to_try):
+            if connect_to_device(address,rfcomm_ports_to_try):
                 return open_gate()
 
+def pairable():
+    from pairable_mode import Agent, Adapter, bus, AGENT_PATH, BUS_NAME, AGNT_MNGR_PATH, AGNT_MNGR_IFACE, CAPABILITY
+    import dbus
+    import dbus.service
+    import dbus.mainloop.glib
+    from gi.repository import GLib
+
+    PAIRING_TIME = 60 	# Temps durant lequel le device est en mode Pairing
+    agent = Agent(bus, AGENT_PATH)
+    agnt_mngr = dbus.Interface(bus.get_object(BUS_NAME, AGNT_MNGR_PATH),
+                               AGNT_MNGR_IFACE)
+    agnt_mngr.RegisterAgent(AGENT_PATH, CAPABILITY)
+    agnt_mngr.RequestDefaultAgent(AGENT_PATH)
+
+    adapter = Adapter()
+    mainloop = GLib.MainLoop()
+
+    # Planifiez l'arrêt du mainloop après 10 secondes (ajustez selon vos besoins)
+    GLib.timeout_add_seconds(60, lambda: mainloop.quit())
+    print(f"Going pairing mode for {PAIRING_TIME} seconds")
+    try:
+        mainloop.run()
+    except KeyboardInterrupt:
+        agnt_mngr.UnregisterAgent(AGENT_PATH)
+        mainloop.quit()
 
 def scan_devices():
     print("Scanning for nearby Bluetooth devices...")
-    nearby_devices = bluetooth.discover_devices(duration=3, flush_cache=True, lookup_names=True, lookup_class=True,
-                                                device_id=-1, iac=10390323)
+    nearby_devices = bluetooth.discover_devices(duration=3, flush_cache=True, lookup_names=True, lookup_class=True, device_id=-1, iac=10390323)
 
     if not nearby_devices:
         print("Aucun périphérique Bluetooth trouvé.")
@@ -45,7 +68,6 @@ def scan_devices():
         for addr, name, _ in nearby_devices:
             print(f"Adresse : {addr}, Nom : {name}")
     return nearby_devices
-
 
 def connect_to_device(mac_address, service_ports):
     for port in service_ports:
@@ -74,7 +96,7 @@ def connect_to_device(mac_address, service_ports):
         except bluetooth.btcommon.BluetoothError as e:
             print(f"Erreur lors de la connexion au périphérique sur le port RFCOMM {port}: {e}")
             socket.close()
-            if hasattr(e, 'errno') and e.errno == 112:  # L'hôte est down (et donc pas besoin de tester les 5 ports)
+            if hasattr(e, 'errno') and e.errno == 112: # L'hôte est down (et donc pas besoin de tester les 5 ports)
                 return False
 
     return False
@@ -82,11 +104,11 @@ def connect_to_device(mac_address, service_ports):
 
 def check_bluetooth_services():
     print("looking for nearby devices...")
-    nearby_devices = bluetooth.discover_devices(lookup_names=True, flush_cache=True, duration=20)
+    nearby_devices = bluetooth.discover_devices(lookup_names = True, flush_cache = True, duration = 20)
     print("found %d devices" % len(nearby_devices))
     for addr, name in nearby_devices:
         print(" %s - %s" % (addr, name))
-        for services in bluetooth.find_service(address=addr):
+        for services in bluetooth.find_service(address = addr):
             print(" Name: %s" % (services["name"]))
             print(" Description: %s" % (services["description"]))
             print(" Protocol: %s" % (services["protocol"]))
@@ -94,25 +116,23 @@ def check_bluetooth_services():
             print(" Port: %s" % (services["port"]))
             print(" Service id: %s" % (services["service-id"]))
 
-
 def sleeping(iteration):
-    print("Sleeping for 3s", end="")
+    print("Sleeping for 3s",end="")
     sys.stdout.flush()
     while iteration > 1:
-        print(".", end="")
+        print(".",end="")
         sys.stdout.flush()
         iteration -= 1
         time.sleep(1)
     print(".")
 
-
 if __name__ == "__main__":
     from Mqtt_Manager import Mqtt_Manager
 
-    previous_devices = []  # Les appareils détectés dans les dernières DETECTION_LATENCY secondes
-    SLEEPING_TIME = 3  # Le temps entre chaque ecoute, en secondes
-    DETECTION_LATENCY = 60  # Le temps entre chaque différenciation de detection pour un meme device, en secondes
-    iteration = 0  # Iteration d'un pas de SLEEPING_TIME dans la DETECTION_LATENCY
+    previous_devices = []	# Les appareils détectés dans les dernières DETECTION_LATENCY secondes
+    SLEEPING_TIME = 3 	# Le temps entre chaque ecoute, en secondes
+    DETECTION_LATENCY = 60 	# Le temps entre chaque différenciation de detection pour un meme device, en secondes
+    iteration = 0		# Iteration d'un pas de SLEEPING_TIME dans la DETECTION_LATENCY
     mqttManager = Mqtt_Manager()
 
     while True:
@@ -125,20 +145,19 @@ if __name__ == "__main__":
         else:
             # On compare les nouvelles valeurs detectées
             previous_devices_MAC_addr = {MAC_addr[0] for MAC_addr in previous_devices}
-            new_devices = [actual_devices_MAC_addr for actual_devices_MAC_addr in actual_devices if
-                           actual_devices_MAC_addr[0] not in previous_devices_MAC_addr]
+            new_devices = [actual_devices_MAC_addr for actual_devices_MAC_addr in actual_devices if actual_devices_MAC_addr[0] not in previous_devices_MAC_addr]
             if len(previous_devices) == 0:
                 previous_devices = new_devices
             else:
                 # On ajoute les nouvelles valeurs a previous_devices
-                print("Previous_device", previous_devices)
+                print("Previous_device",previous_devices)
                 previous_devices.extend(actual_devices)
                 previous_devices = list(set(previous_devices))
 
-        print("New devices: ", new_devices)  # a push sur le broker
+        print("New devices: ",new_devices) #a push sur le broker
         if len(new_devices) > 0:
             json_message = json.dumps(new_devices)
-            mqttManager.publish('archi/request', json_message)
+            mqttManager.publish('archi/request',json_message)
         mqttManager.start_listening()
         sleeping(3)
         mqttManager.stop_listening()
@@ -146,5 +165,6 @@ if __name__ == "__main__":
         if len(new_devices) == 0:
             iteration += SLEEPING_TIME
         else:
-            iteration = math.floor(iteration / 2)
-        print("Iteration N°", iteration)
+            iteration = math.floor(iteration/2)
+        print("Iteration N°",iteration)
+

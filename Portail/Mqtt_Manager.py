@@ -4,8 +4,8 @@ import ast
 MQTT_HOST = "192.168.80.177"
 MQTT_PORT = 2883  # 1884
 
-
 class Mqtt_Manager:
+
     client = None
 
     def __init__(self):
@@ -13,7 +13,7 @@ class Mqtt_Manager:
         self.client.on_connect = self.on_connect  # Define callback function for successful connection
         self.client.on_message = self.on_message  # Define callback function for receipt of a message
         # client.connect("m2m.eclipse.org", 1883, 60)  # Connect to (broker, port, keepalive-time)
-        self.client.connect(MQTT_HOST, MQTT_PORT, 60)
+        self.client.connect(MQTT_HOST, MQTT_PORT,60)
         # client.loop_forever()  # Start networking daemon
         # Créez une instance de la classe CameraManager
         # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
@@ -31,12 +31,22 @@ class Mqtt_Manager:
         print("Connected with resultcode {0}".format(str(rc)))
         # Subscribe to the topic “digitest/test1”, receive any messages published on it
         client.subscribe("archi/gate")
+        client.subscribe("archi/pair")
 
     def on_message(self, client, userdata, msg):  # The callback for when a PUBLISH message is received from the server.
-        from scan_bluetooth import broker_response
-        print("Message received-> " + msg.topic)  # Print a received msg
-        broker_response(ast.literal_eval(msg.payload.decode()))
+        from scan_bluetooth import broker_response, pairable
 
-    def publish(self, topic, msg):
+        print("Message received-> " + msg.topic)  # Print a received msg
+        if msg.topic == "archi/gate": broker_response(ast.literal_eval(msg.payload.decode()))
+        else : pairable()
+
+    def publish(self,topic,msg):
         print("Publishing on topic '{}': '{}'".format(topic, msg))
         self.client.publish(topic, msg)
+
+
+
+
+
+
+
