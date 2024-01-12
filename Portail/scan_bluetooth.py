@@ -4,6 +4,21 @@ import sys
 import math
 import json
 import os
+import subprocess
+import re
+
+rfcomm_ports_to_try = [1, 2, 3, 4, 5]
+
+# Fonction pour extraire l'adresse MAC et le nom du périphérique
+def extract_device_info(device_str):
+    # Utilisation d'une expression régulière pour extraire l'adresse MAC et le nom
+    match = re.match(r'Device (\S+) (.+)', device_str.decode('utf-8'))
+    if match:
+        address = match.group(1)
+        alias = match.group(2)
+        return {'Address': address, 'Alias': alias}
+    else:
+        return None
 
 def open_gate():
     print("##### OUVERTURE DU PORTAIL #####")
@@ -27,18 +42,18 @@ def broker_response(addr_list):
         if address == "True":
             open_gate()
         else:
-            rfcomm_ports_to_try = [1, 2, 3, 4, 5]
+            #rfcomm_ports_to_try = [1, 2, 3, 4, 5]
             if connect_to_device(address,rfcomm_ports_to_try):
                 return open_gate()
 
 def pairable():
-    from pairable_mode import Agent, Adapter, bus, AGENT_PATH, BUS_NAME, AGNT_MNGR_PATH, AGNT_MNGR_IFACE, CAPABILITY
+    from pairable_mode import Agent, Adapter, bus, AGENT_PATH, BUS_NAME, AGNT_MNGR_PATH, AGNT_MNGR_IFACE, CAPABILITY, disconnect_new_device
     import dbus
     import dbus.service
     import dbus.mainloop.glib
     from gi.repository import GLib
 
-    PAIRING_TIME = 60 	# Temps durant lequel le device est en mode Pairing
+    PAIRING_TIME = 30 	# Temps durant lequel le device est en mode Pairing
     agent = Agent(bus, AGENT_PATH)
     agnt_mngr = dbus.Interface(bus.get_object(BUS_NAME, AGNT_MNGR_PATH),
                                AGNT_MNGR_IFACE)
@@ -56,6 +71,33 @@ def pairable():
     except KeyboardInterrupt:
         agnt_mngr.UnregisterAgent(AGENT_PATH)
         mainloop.quit()
+    #adapter.adapter_reset()
+    disconnect_new_device()
+    get_paired_devices()
+    adapter.adapter_reset()
+
+def get_paired_devices():
+    try:
+        # Exécute la commande bluetoothctl avec sudo
+        result = subprocess.run(['sudo', 'bluetoothctl', 'devices'], capture_output=True)
+
+        # Récupère la sortie de la commande (liste des périphériques Bluetooth)
+        output_lines = result.stdout.splitlines()
+
+        # Retourne la liste des périphériques Bluetooth
+        #return output_lines
+
+        paired_devices_str = [extract_device_info(device) for device in output_lines]
+
+        # Filtrer les éléments None (qui n'ont pas pu être extraits)
+        paired_devices_str = [info for info in paired_devices_str if info is not None]
+
+        return paired_devices_str
+
+    except subprocess.CalledProcessError as e:
+        # Gère les erreurs lors de l'exécution de la commande
+        print(f"Erreur lors de l'exécution de la commande bluetoothctl : {e}")
+        return []
 
 def scan_devices():
     print("Scanning for nearby Bluetooth devices...")
@@ -70,6 +112,17 @@ def scan_devices():
     return nearby_devices
 
 def connect_to_device(mac_address, service_ports):
+
+    # Vérifiez d'abord si le périphérique est appairé (trusted)
+    paired_devices = get_paired_devices()
+
+    # Extrayez les adresses MAC de la liste des périphériques appairés
+    paired_addresses = [device['Address'] for device in paired_devices]
+
+    if mac_address not in paired_addresses:
+        print(f"Le périphérique avec l'adresse MAC {mac_address} n'est pas appairé (trusted).")
+        return False
+
     for port in service_ports:
         try:
             # Crée une socket Bluetooth
@@ -126,6 +179,12 @@ def sleeping(iteration):
         time.sleep(1)
     print(".")
 
+def downgraded_mode(devices):
+    print('##### SWITCHING TO DOWNGRADED MODE #####')
+    adresses_mac = [objet[0] for objet in devices]
+    for addr in adresses_mac:
+        if connect_to_device(addr,rfcomm_ports_to_try): return open_gate()
+
 if __name__ == "__main__":
     from Mqtt_Manager import Mqtt_Manager
 
@@ -134,8 +193,25 @@ if __name__ == "__main__":
     DETECTION_LATENCY = 60 	# Le temps entre chaque différenciation de detection pour un meme device, en secondes
     iteration = 0		# Iteration d'un pas de SLEEPING_TIME dans la DETECTION_LATENCY
     mqttManager = Mqtt_Manager()
+    paired_devices = []
+    previous_paired_devices = []
 
     while True:
+        print("Paired devices: ", paired_devices,previous_paired_devices)
+        if len(paired_devices) == 0:
+            paired_devices = get_paired_devices()
+            previous_paired_devices = paired_devices
+        if paired_devices != previous_paired_devices:
+            print('Publishing new pairing device')
+            # Appliquer la fonction à chaque élément de la liste
+            #paired_devices_str = [extract_device_info(device) for device in paired_devices]
+
+            # Filtrer les éléments None (qui n'ont pas pu être extraits)
+            #paired_devices_str = [info for info in paired_devices_str if info is not None]
+
+            mqttManager.publish('archi/devices',json.dumps(paired_devices))
+            previous_paired_devices = paired_devices
+        else: paired_devices = get_paired_devices()
         actual_devices = scan_devices()
         # On vérifie si on est dans une nouvelle boucle du DETECTION_LATENCY
         if iteration >= DETECTION_LATENCY:
@@ -154,10 +230,11 @@ if __name__ == "__main__":
                 previous_devices.extend(actual_devices)
                 previous_devices = list(set(previous_devices))
 
-        print("New devices: ",new_devices) #a push sur le broker
         if len(new_devices) > 0:
             json_message = json.dumps(new_devices)
-            mqttManager.publish('archi/request',json_message)
+            loraWan_access = mqttManager.publish('archi/request',json_message)
+            if not loraWan_access: #Passage en mode dégradé
+                downgraded_mode(new_devices)
         mqttManager.start_listening()
         sleeping(3)
         mqttManager.stop_listening()

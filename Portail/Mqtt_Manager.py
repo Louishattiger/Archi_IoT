@@ -7,6 +7,7 @@ MQTT_PORT = 2883  # 1884
 class Mqtt_Manager:
 
     client = None
+    retry_count = 0
 
     def __init__(self):
         self.client = mqtt.Client("Portail")  # Create instance of client with client ID “digi_mqtt_test”
@@ -17,6 +18,8 @@ class Mqtt_Manager:
         # client.loop_forever()  # Start networking daemon
         # Créez une instance de la classe CameraManager
         # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+        self.retry_count = 0
+
 
     def start_listening(self):
         print("Début de l'écoute sur le Broker...")
@@ -42,7 +45,29 @@ class Mqtt_Manager:
 
     def publish(self,topic,msg):
         print("Publishing on topic '{}': '{}'".format(topic, msg))
-        self.client.publish(topic, msg)
+        return self.publish_with_retry(topic, msg)
+
+    def publish_with_retry(self, topic, msg, max_retries=10):
+        while self.retry_count < max_retries:
+            # Publier le message
+            result, mid = self.client.publish(topic, msg)
+
+            if result == mqtt.MQTT_ERR_SUCCESS:
+                # Le message a été publié avec succès
+                self.retry_count = 0
+                return True
+            elif result == mqtt.MQTT_ERR_NO_CONN:
+                # Le client n'est pas connecté, réessayer après un court délai
+                print("Client not connected. Retrying...")
+                #time.sleep(1)
+                self.retry_count += 1
+            else:
+                # Une erreur inattendue s'est produite, arrêter les tentatives
+                print("Unexpected error. Stopping retries.")
+                break
+        self.retry_count = 0
+        return False
+
 
 
 

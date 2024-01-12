@@ -2,6 +2,7 @@ import dbus
 import dbus.service
 import dbus.mainloop.glib
 from gi.repository import GLib
+import subprocess
 
 BUS_NAME = 'org.bluez'
 ADAPTER_IFACE = 'org.bluez.Adapter1'
@@ -14,10 +15,34 @@ CAPABILITY = 'KeyboardDisplay'
 DEVICE_IFACE = 'org.bluez.Device1'
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 bus = dbus.SystemBus()
+new_address_mac = None
 
 def set_trusted(path):
+    global new_address_mac
+
+    print("DEVICE: ",path)
     props = dbus.Interface(bus.get_object(BUS_NAME, path), dbus.PROPERTIES_IFACE)
-    props.Set(DEVICE_IFACE, "Trusted", True)
+    props.Set(DEVICE_IFACE, "Trusted", True)# La chaîne que vous avez
+
+    # Utilisez le découpage pour extraire la partie qui représente l'adresse MAC
+    adresse_mac_part = path.split('/')[-1]
+
+    new_address_mac = adresse_mac_part.replace('_', ':').replace('dev:', '')
+    print('new_address_mac = ',new_address_mac)
+
+def disconnect_new_device():
+    print('Disconnecting device: ',new_address_mac)
+    try:
+        # Exécute la commande bluetoothctl avec sudo
+        result = subprocess.run(['sudo', 'bluetoothctl', 'disconnect', new_address_mac], capture_output=True)
+
+        # Affiche la sortie de la commande
+        print(result.stdout)
+
+    except subprocess.CalledProcessError as e:
+        # Gère les erreurs lors de l'exécution de la commande
+        print(f"Erreur lors de l'exécution de la commande bluetoothctl : {e}")
+
 
 class Agent(dbus.service.Object):
 
@@ -84,6 +109,12 @@ class Adapter:
         self.adapter_props.Set(ADAPTER_IFACE,
                                'Pairable', True)
 
+    def adapter_reset(self):
+        self.adapter_props.Set(ADAPTER_IFACE,
+                               'Discoverable', False)
+        self.adapter_props.Set(ADAPTER_IFACE,
+                               'Pairable', False)
+
 
 if __name__ == '__main__':
     agent = Agent(bus, AGENT_PATH)
@@ -96,10 +127,11 @@ if __name__ == '__main__':
     mainloop = GLib.MainLoop()
 
     # Planifiez l'arrêt du mainloop après 10 secondes (ajustez selon vos besoins)
-    GLib.timeout_add_seconds(60, lambda: mainloop.quit())
+    GLib.timeout_add_seconds(30, lambda: mainloop.quit())
 
     try:
         mainloop.run()
     except KeyboardInterrupt:
         agnt_mngr.UnregisterAgent(AGENT_PATH)
         mainloop.quit()
+    disconnect_new_device()
