@@ -1,5 +1,6 @@
 const ipadress = 'http://192.168.80.5:9001'//'http://127.0.0.1:9001'
 
+
 document.getElementById('open').addEventListener('click', function () {
     // Créer une instance de l'objet XMLHttpRequest
     var xhr = new XMLHttpRequest();
