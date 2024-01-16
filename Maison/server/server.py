@@ -52,7 +52,7 @@ def dynamic_route(mac):
             config_file.write('\n'.join(config_macs))
 
         # Suppression de l'apparail dans les appairages du portail
-        client.publish('archi/unpair',json.dumps(mac))
+        client.publish('archi/unpair', mac)
 
         print(f"Adresse MAC {mac} supprimée avec succès.")
         return jsonify({"mac_supprimee": mac})
