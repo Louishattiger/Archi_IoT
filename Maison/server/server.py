@@ -28,13 +28,13 @@ def get_mac():
 @app.route('/add')
 def add():
     print("****************APAIRING*****************")
-    client.publish('archi/pair', json.dumps(['True']))
+    print("Publication done ? ",client.publish('archi/pair', json.dumps(['True'])).is_published())
     return jsonify(200)
 
 @app.route('/open')
 def open():
     print("****************OPEN*****************")
-    client.publish('archi/gate', json.dumps(['True']))
+    print("Publication done ? ",client.publish('archi/gate', json.dumps(['True'])).is_published())
     return jsonify(200)
 
 @app.route('/delete/<mac>')
@@ -52,7 +52,7 @@ def dynamic_route(mac):
             config_file.write('\n'.join(config_macs))
 
         # Suppression de l'apparail dans les appairages du portail
-        client.publish('archi/unpair', mac)
+        print("Publication done ? ",client.publish('archi/unpair', mac).is_published())
 
         print(f"Adresse MAC {mac} supprimée avec succès.")
         return jsonify({"mac_supprimee": mac})

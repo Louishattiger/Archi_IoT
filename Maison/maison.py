@@ -8,8 +8,9 @@ def devices(msg):
     # Lire les adresses MAC du fichier config
     # received_data = json.loads(msg.payload.decode('utf8'))
     received_data = json.loads(msg)
+    #print("received_data: ",received_data)
     received_macs = [device["Address"] for device in received_data]
-    print("Liste des adresses MAC reçue : ", received_macs)
+    #print("Liste des adresses MAC reçue : ", received_macs)
 
     config_file_path = 'config.txt'
     with open(config_file_path, 'w') as config_file:
@@ -17,18 +18,22 @@ def devices(msg):
 
 
 # def is_registered(client, userdata, msg):
-def is_registered(msg):
+def is_registered(clientMqtt,msg):
     config_file_path = 'config.txt'
     with open(config_file_path, 'r') as file:
         adresses_mac_config = set(line.strip() for line in file)
+        #print("adresse presente dans config: ", adresses_mac_config)
     # received_data = msg.payload.decode('utf8')
-    received_data = msg
+    received_data = json.loads(msg)
+    #print("adresse recue: ",msg)
+    received_macs = [device["Address"] for device in received_data]
+
     # Filtrer les éléments de la liste en fonction des adresses MAC
-    resultats_filtres = [element for element in received_data if element[0] in adresses_mac_config]
+    resultats_filtres = [element for element in received_macs if element in adresses_mac_config]
     if (len(resultats_filtres) == 0):
         resultats_filtres = ['False']
     print(resultats_filtres)
-    client.publish('archi/gate', json.dumps(resultats_filtres))
+    clientMqtt.publish('archi/gate', json.dumps(resultats_filtres))
     # client.publish(client.TOPIC_GATE, json.dumps(resultats_filtres))
 
 
@@ -66,5 +71,6 @@ def first_connection():
 # S'abonne au topic pour savoir si l'on doit faire la première connexion d'un device
 # client.message_callback_add(client.TOPIC_BLUETOOTH, first_connection)
 if __name__ == "__main__":
+    global client
     client = MQTTManager("Maison")
     client.loop()

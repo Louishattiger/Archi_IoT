@@ -32,11 +32,11 @@ class MQTTManager:
         from maison import is_registered, devices, first_connection
         print("Message received-> " + msg.topic)  # Print a received msg
         if msg.topic == "archi/devices":
-            devices(msg.payload.decode('utf8'))
+            devices(msg.payload.decode())
         elif msg.topic == "archi/bluetooth":
             first_connection()
         else:
-            is_registered(msg.payload.decode('utf8'))
+            is_registered(self.client,msg.payload.decode())
 
     def loop(self):
         self.client.loop_forever()
