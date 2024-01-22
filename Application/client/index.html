@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
-    <script src="script.js"></script>
     <title>Exemple de Requête HTTP</title>
 </head>
 <body onload="load()" class="container">
@@ -16,7 +15,19 @@
         <button id="open" class="action-button">Ouvrir portail</button>
     </div>
     <div id="response" class="response-container">
-        <p1>Appareil déjà installé</p1>
+        <p1>Liste appareils ajoutés</p1>
     </div>
+    <div class="form-container">
+        <label id="titre-form">Si le boitier de votre maison n'est pas connecté à internet</label>
+        <div class="form-group">
+            <label for="ssid">SSID</label>
+            <input type="text" id="ssid" name="ssid" required minlength="1" maxlength="20" size="10" />
+        </div>
+        <div class="form-group">
+            <label for="password">Mot de passe</label>
+            <input type="password" id="password" name="password" required minlength="1" maxlength="20" size="10" />
+        </div>
+    </div>
+    <script src="script.js"></script>
 </body>
 </html>
