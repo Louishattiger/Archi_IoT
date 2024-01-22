@@ -13,9 +13,18 @@ def devices(msg):
     #print("Liste des adresses MAC reçue : ", received_macs)
 
     config_file_path = 'config.txt'
-    with open(config_file_path, 'w') as config_file:
-        config_file.write('\n'.join(received_macs))
-
+    existing_macs = set()
+    try:
+        with open(config_file_path, 'r') as existing_file:
+            existing_macs = set(line.strip() for line in existing_file)
+    except FileNotFoundError:
+        pass  # Le fichier n'existe pas encore, c'est normal
+    print(received_macs)
+    new_macs = [mac for mac in received_macs if mac not in existing_macs]
+    if new_macs:
+        with open(config_file_path, 'a') as config_file:
+            config_file.write('\n'.join(received_macs))
+            config_file.write('\n')
 
 # def is_registered(client, userdata, msg):
 def is_registered(clientMqtt,msg):

@@ -1,20 +1,22 @@
 import builtins
 import os
 import json
+import threading
 from flask import Flask, jsonify
-#from flask import CORS
+from werkzeug.serving import run_simple
+from flask_cors import CORS
 #from mqtt_server import MQTTClient
 #from maison import serveur_publi
 
-from Maison.mqtt_manager import MQTTManager
+from mqtt_manager import MQTTManager
 
 app = Flask(__name__)
-#CORS(app)  # Ajoutez cette ligne pour activer le support CORS
+CORS(app)  # Ajoutez cette ligne pour activer le support CORS
 #client = None
-config_path = "config.txt"
+#config_path = "config.txt"
 
 def read_config_file():
-    #config_path = 'config.txt'
+    config_path = 'config.txt'
     with builtins.open(config_path, 'r') as file:
         lines = file.readlines()
     return [line.strip() for line in lines]
@@ -41,7 +43,7 @@ def open():
 def dynamic_route(mac):
     print("****************DELETE*****************")
     print(mac)
-    #config_path = 'config.txt'
+    config_path = 'config.txt'
     with builtins.open(config_path, 'r') as config_file:
         config_macs = [line.strip() for line in config_file]
 
@@ -60,9 +62,27 @@ def dynamic_route(mac):
         print(f"L'adresse MAC {mac} n'est pas présente dans le fichier de configuration.")
         return jsonify({"L'adresse MAC {mac} n'est pas présente dans le fichier de configuration."})
 
+def run_flask_app():
+    #port_number = 9001
+    #app.run(host='0.0.0.0', port=port_number, debug=True)
+    global client
+    client = MQTTManager("Server")
+    client.loop()
+    print("Client lancé")
+
+def run_app():
+    print("Serveur en cours d execution")
+    port = 9001
+    app.run(host='0.0.0.0', port=port, debug=True)
+
 if __name__ == '__main__':
     global client
     client = MQTTManager("Serveur")
-    port = 9001
-    app.run(host='0.0.0.0', port=port, debug=True)
-    print("Serveur en cours d execution")
+#    client.loop_start()
+#flask_thread = threading.Thread(target=run_flask_app)
+#    flask_thread.start()
+    run_app()
+ #   run_simple('0.0.0.0', 9001, app, use_reloader=True)
+    #flask_thread.join()
+#    client.loop_stop()
+    #print("Client lancé")

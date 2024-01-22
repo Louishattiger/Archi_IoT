@@ -1,7 +1,7 @@
 import paho.mqtt.client as mqtt
 
-MQTT_HOST = "192.168.80.177"
-MQTT_PORT = 2883
+MQTT_HOST = "192.168.80.5"
+MQTT_PORT = 1883
 
 
 class MQTTManager:
@@ -20,9 +20,9 @@ class MQTTManager:
         # Print result of connection attempt
         print("Connected with resultcode {0}".format(str(rc)))
         # Subscribe to the topic “digitest/test1”, receive any messages published on it
-        client.subscribe("archi/devices")
-        client.subscribe("archi/bluetooth")
-        client.subscribe("archi/request")
+        client.subscribe("archi/devices", qos=2)
+        client.subscribe("archi/bluetooth", qos=2)
+        client.subscribe("archi/request", qos=2)
 
     def publish(self, topic, msg):
         print("Publishing on topic '{}': '{}'".format(topic, msg))
@@ -40,3 +40,9 @@ class MQTTManager:
 
     def loop(self):
         self.client.loop_forever()
+
+    def loop_start(self):
+        self.client.loop_start()
+
+    def loop_stop(self):
+        self.client.loop_stop()
