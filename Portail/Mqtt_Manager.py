@@ -35,12 +35,14 @@ class Mqtt_Manager:
         # Subscribe to the topic “digitest/test1”, receive any messages published on it
         client.subscribe("archi/gate")
         client.subscribe("archi/pair")
+        client.subscribe("archi/unpair")
 
     def on_message(self, client, userdata, msg):  # The callback for when a PUBLISH message is received from the server.
-        from scan_bluetooth import broker_response, pairable
+        from scan_bluetooth import broker_response, pairable, unpair_device
 
         print("Message received-> " + msg.topic)  # Print a received msg
         if msg.topic == "archi/gate": broker_response(ast.literal_eval(msg.payload.decode()))
+        elif msg.topic == "archi/unpair": unpair_device(msg.payload.decode())
         else : pairable()
 
     def publish(self,topic,msg):

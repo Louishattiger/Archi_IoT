@@ -1,74 +1,60 @@
+import builtins
 import os
+import json
+import threading
 from flask import Flask, jsonify
+from werkzeug.serving import run_simple
 from flask_cors import CORS
+#from mqtt_server import MQTTClient
+#from maison import serveur_publi
+
+from mqtt_manager import MQTTManager
 
 app = Flask(__name__)
 CORS(app)  # Ajoutez cette ligne pour activer le support CORS
+#client = None
+#config_path = "config.txt"
 
 def read_config_file():
-    config_path = os.path.join(os.pardir, 'config.txt')
-    with open(config_path, 'r') as file:
-        lines = file.readLines()
+    config_path = 'config.txt'
+    with builtins.open(config_path, 'r') as file:
+        lines = file.readlines()
     return [line.strip() for line in lines]
 
 @app.route('/mac')
 def get_mac():
     config_elements = read_config_file()
-    #elements = ['element 1', 'element 2', 'element 3']
     print("****************PULL_LIST*****************")
     return jsonify(config_elements)
 
 @app.route('/add')
 def add():
-    from connexion_bluetooth import pairable, maj_config
-    mac_address = pairable()
-    maj_config(mac_address)
     print("****************APAIRING*****************")
-    return jsonify(mac_address)
+    print("Publication done ? ",client.publish('archi/pair', json.dumps(['True'])).is_published())
+    return jsonify(200)
 
 @app.route('/open')
 def open():
-    # Parse environment variables to get MQTT broker parameters
-    DOCKER_VARENV = ['MQTT_HOST', 'MQTT_PORT']
-
-    if set(DOCKER_VARENV).issubset(set(os.environ)):
-        MQTT_HOST = env(DOCKER_VARENV[0], default='localhost')
-        MQTT_PORT = env.int(DOCKER_VARENV[1], default=1883)
-    else:
-        MQTT_HOST = 'localhost'
-        MQTT_PORT = 1883
-
-    # Start a connexion to the MQTT broker
-    QOS = 0
-    client = MQTTClient("controler", MQTT_HOST, MQTT_PORT, QOS)
-    client.loop_start() # start client in a dedicated thread to
-    client.publish(client.TOPIC_GATE, json.dumps(['True'])
-    client.loop_stop()
     print("****************OPEN*****************")
+    print("Publication done ? ",client.publish('archi/gate', json.dumps(['True'])).is_published())
     return jsonify(200)
-    #if result.rc == MQTTClient.MQTT_ERR_SUCCESS:
-        # Message was successfully published
-     #   client.loop_stop()
-     #   print("****************OPEN*****************")
-     #   return jsonify(200)
-    #else:
-        # There was an error publishing the message
-     #   client.loop_stop()
-     #   return jsonify('error: Failed to publish message')
 
 @app.route('/delete/<mac>')
 def dynamic_route(mac):
     print("****************DELETE*****************")
     print(mac)
-    config_path = os.path.join(os.pardir, 'config.txt')
-    with open(config_path, 'r') as config_file:
+    config_path = 'config.txt'
+    with builtins.open(config_path, 'r') as config_file:
         config_macs = [line.strip() for line in config_file]
 
     if mac in config_macs:
         config_macs.remove(mac)
 
-        with open(config_path, 'w') as config_file:
+        with builtins.open(config_path, 'w') as config_file:
             config_file.write('\n'.join(config_macs))
+
+        # Suppression de l'apparail dans les appairages du portail
+        print("Publication done ? ",client.publish('archi/unpair', mac).is_published())
 
         print(f"Adresse MAC {mac} supprimée avec succès.")
         return jsonify({"mac_supprimee": mac})
@@ -76,7 +62,27 @@ def dynamic_route(mac):
         print(f"L'adresse MAC {mac} n'est pas présente dans le fichier de configuration.")
         return jsonify({"L'adresse MAC {mac} n'est pas présente dans le fichier de configuration."})
 
-if __name__ == '__main__':
+def run_flask_app():
+    #port_number = 9001
+    #app.run(host='0.0.0.0', port=port_number, debug=True)
+    global client
+    client = MQTTManager("Server")
+    client.loop()
+    print("Client lancé")
+
+def run_app():
+    print("Serveur en cours d execution")
     port = 9001
     app.run(host='0.0.0.0', port=port, debug=True)
-    print("Serveur en cours d execution")
+
+if __name__ == '__main__':
+    global client
+    client = MQTTManager("Serveur")
+#    client.loop_start()
+#flask_thread = threading.Thread(target=run_flask_app)
+#    flask_thread.start()
+    run_app()
+ #   run_simple('0.0.0.0', 9001, app, use_reloader=True)
+    #flask_thread.join()
+#    client.loop_stop()
+    #print("Client lancé")

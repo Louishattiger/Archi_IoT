@@ -41,7 +41,7 @@ def broker_response(addr_list):
         print("Current address processing: ",address)
         if address == "True":
             open_gate()
-        else:
+        elif address != "False":
             #rfcomm_ports_to_try = [1, 2, 3, 4, 5]
             if connect_to_device(address,rfcomm_ports_to_try):
                 return open_gate()
@@ -99,17 +99,35 @@ def get_paired_devices():
         print(f"Erreur lors de l'exécution de la commande bluetoothctl : {e}")
         return []
 
+def unpair_device(device):
+    try:
+        # Exécute la commande bluetoothctl avec sudo
+        result = subprocess.run(['sudo', 'bluetoothctl', 'remove', device], capture_output=True)
+
+        # Récupère la sortie de la commande (liste des périphériques Bluetooth)
+        output_lines = result.stdout.splitlines()
+
+        print(output_lines)
+
+    except subprocess.CalledProcessError as e:
+        # Gère les erreurs lors de l'exécution de la commande
+        print(f"Erreur lors de l'exécution de la commande bluetoothctl : {e}")
+        return []
+
+
 def scan_devices():
     print("Scanning for nearby Bluetooth devices...")
     nearby_devices = bluetooth.discover_devices(duration=3, flush_cache=True, lookup_names=True, lookup_class=True, device_id=-1, iac=10390323)
-
+    devices_list = []
     if not nearby_devices:
         print("Aucun périphérique Bluetooth trouvé.")
     else:
+        devices_list = [{"Address": addr, "Alias": name} for addr, name, _ in nearby_devices]
         print("Périphériques Bluetooth trouvés :")
-        for addr, name, _ in nearby_devices:
-            print(f"Adresse : {addr}, Nom : {name}")
-    return nearby_devices
+        for device in devices_list:
+            print(f"Adresse : {device['Address']}, Nom : {device['Alias']}")
+
+    return devices_list
 
 def connect_to_device(mac_address, service_ports):
 
@@ -197,38 +215,49 @@ if __name__ == "__main__":
     previous_paired_devices = []
 
     while True:
-        print("Paired devices: ", paired_devices,previous_paired_devices)
-        if len(paired_devices) == 0:
-            paired_devices = get_paired_devices()
-            previous_paired_devices = paired_devices
+        paired_devices = get_paired_devices()
+        #print("Paired devices: ", paired_devices,previous_paired_devices)
+        #if len(paired_devices) == 0:
+        #paired_devices = get_paired_devices()
+        #previous_paired_devices = paired_devices
         if paired_devices != previous_paired_devices:
-            print('Publishing new pairing device')
+            print('Publishing new pairing device: ',paired_devices)
             # Appliquer la fonction à chaque élément de la liste
             #paired_devices_str = [extract_device_info(device) for device in paired_devices]
 
             # Filtrer les éléments None (qui n'ont pas pu être extraits)
             #paired_devices_str = [info for info in paired_devices_str if info is not None]
 
+            #print('publication archi/devices')
             mqttManager.publish('archi/devices',json.dumps(paired_devices))
             previous_paired_devices = paired_devices
-        else: paired_devices = get_paired_devices()
+        #iteration = DETECTION_LATENCY
+        #else: paired_devices = get_paired_devices()
         actual_devices = scan_devices()
         # On vérifie si on est dans une nouvelle boucle du DETECTION_LATENCY
         if iteration >= DETECTION_LATENCY:
-            previous_devices = []
+            previous_devices = {}
             new_devices = actual_devices
             iteration = 0
         else:
             # On compare les nouvelles valeurs detectées
-            previous_devices_MAC_addr = {MAC_addr[0] for MAC_addr in previous_devices}
-            new_devices = [actual_devices_MAC_addr for actual_devices_MAC_addr in actual_devices if actual_devices_MAC_addr[0] not in previous_devices_MAC_addr]
+            #previous_devices_MAC_addr = {for MAC_addr['Address'] in previous_devices}
+            #new_devices = [actual_devices_MAC_addr for actual_devices_MAC_addr in actual_devices if actual_devices_MAC_addr not in previous_devices_MAC_addr]
+            actual_addresses = {device['Address'] for device in actual_devices}
+            previous_addresses = {device['Address'] for device in previous_devices}
+            # Calculate the set difference to find addresses present in actual_devices but not in previous_devices
+            new_addresses = actual_addresses - previous_addresses
+            # Create a list of dictionaries for the new devices
+            new_devices = [{"Address": address, "Alias": next(device['Alias'] for device in actual_devices if device['Address'] == address)} for address in new_addresses]
+            print("New devices: ", new_devices)
             if len(previous_devices) == 0:
                 previous_devices = new_devices
             else:
                 # On ajoute les nouvelles valeurs a previous_devices
                 print("Previous_device",previous_devices)
-                previous_devices.extend(actual_devices)
-                previous_devices = list(set(previous_devices))
+                #previous_devices.extend(actual_devices)
+                #previous_devices = list(set(previous_devices))
+                previous_devices += new_devices
 
         if len(new_devices) > 0:
             json_message = json.dumps(new_devices)
